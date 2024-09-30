@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 typedef double StackElem_t;
 
@@ -60,13 +62,19 @@ void StackData(Stack_t * stk);
 enum ErrorCodes StackAssertFunc(Stack_t * stk, const char * file, int line, const char * func);
 void StackDump(Stack_t * stk, const char * file, int line, const char * func);
 enum ErrorCodes StackError(Stack_t * stk);
+static inline uint32_t murmur_32_scramble(uint32_t k);
+uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed);
 
 int main()
 {
     Stack_t stk = {}; STACKCTOR(&stk);
 
     for (int i = 0; i < 100; i++) { push(&stk, 100 * (i + 1)); }
+
     for (int i = 0; i < 80; i++) { pop(&stk); }
+
+    uint32_t h = murmur3_32((uint8_t*)(stk.data + 1), stk.size * sizeof(StackElem_t), 52);
+    printf("%" PRIu32 "\n", h);
 
     StackData(&stk);
     StackDump(&stk, __FILE__, __LINE__, __func__);
@@ -202,8 +210,8 @@ void StackDump(Stack_t * stk, const char * file, int line, const char * func)
             "    {\n"
             "        left canary = 0x%X\n"
             "        right canary = 0x%X\n"
-            "        capacity = %d\n"
-            "        size     = %d\n"
+            "        capacity = %lu\n"
+            "        size     = %lu\n"
             "        data [%p]\n"
             "        {\n",
             stk,
@@ -231,4 +239,46 @@ enum ErrorCodes StackError(Stack_t * stk)
     if (stk -> data[0] != CANARY_VALUE)                   { return LeftAttackOnStack       ;}
     if (stk -> data[stk -> capacity + 1] != CANARY_VALUE) { return RightAttackOnStack      ;}
                                                           { return StackOK                 ;}
+}
+
+static inline uint32_t murmur_32_scramble(uint32_t k)
+{
+    k *= 0xcc9e2d51;
+    k = (k << 15) | (k >> 17);
+    k *= 0x1b873593;
+    return k;
+}
+
+uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed)
+{
+	uint32_t h = seed;
+    uint32_t k;
+    /* Read in groups of 4. */
+    for (size_t i = len >> 2; i; i--) {
+        // Here is a source of differing results across endiannesses.
+        // A swap here has no effects on hash properties though.
+        memcpy(&k, key, sizeof(uint32_t));
+        key += sizeof(uint32_t);
+        h ^= murmur_32_scramble(k);
+        h = (h << 13) | (h >> 19);
+        h = h * 5 + 0xe6546b64;
+    }
+    /* Read the rest. */
+    k = 0;
+    for (size_t i = len & 3; i; i--) {
+        k <<= 8;
+        k |= key[i - 1];
+    }
+    // A swap is *not* necessary here because the preceding loop already
+    // places the low bytes in the low places according to whatever endianness
+    // we use. Swaps only apply when the memory is copied in a chunk.
+    h ^= murmur_32_scramble(k);
+    /* Finalize. */
+	h ^= len;
+	h ^= h >> 16;
+	h *= 0x85ebca6b;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35;
+	h ^= h >> 16;
+	return h;
 }
