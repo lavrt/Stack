@@ -3,10 +3,11 @@
 #include <assert.h>
 #include <string.h>
 
-size_t const INIT_SIZE = 16;
-size_t const MAGNIFICATION_FACTOR = 2;
-size_t const REDUCTION_FACTOR = 4;
-size_t const NEW_LINE_INDICATOR = 10;
+size_t const INIT_SIZE            =        16;
+size_t const MAGNIFICATION_FACTOR =         2;
+size_t const REDUCTION_FACTOR     =         4;
+size_t const NEW_LINE_INDICATOR   =        10;
+int    const CANARY_VALUE         = 0xDEFACED;
 
 #define STACKASSERT(stk_) \
     do { StackAssertFunc(stk_, __FILE__, __LINE__, __func__); } while(0)
@@ -23,6 +24,8 @@ enum ErrorCodes
     IncorrectStackSize,
     IncorrectStackCapacity,
     SizeExceededCapacity,
+    LeftAttackOnStructure,
+    RightAttackOnStructure,
 };
 
 typedef double StackElem_t;
@@ -37,10 +40,12 @@ struct Stack_info
 
 struct Stack_t
 {
+    int left_canary;
     StackElem_t * data;
     size_t size;
     size_t capacity;
     Stack_info info;
+    int right_canary;
 };
 
 void StackCtor(Stack_t * stk, const char * pointer_name, const char * pointer_place, int pointer_line,
@@ -56,6 +61,14 @@ enum ErrorCodes StackError(Stack_t * stk);
 int main()
 {
     Stack_t stk = {}; STACKCTOR(&stk);
+
+    /*int * ptr = &(stk.left_canary);
+    printf("[%p]\n", ptr);
+    ptr -= 20;
+    for (int i = 0; true; i++)
+    {
+        *ptr = 0;
+    }*/
 
     for (int i = 0; i < 30; i++) { push(&stk, 100 * (i + 1)); }
 
@@ -73,13 +86,17 @@ int main()
 void StackCtor(Stack_t * stk, const char * pointer_name, const char * pointer_place, int pointer_line,
                const char * func_name)
 {
-    stk -> data = (StackElem_t *)calloc(INIT_SIZE, sizeof(StackElem_t));
+    stk -> data = (StackElem_t *)calloc(INIT_SIZE + 2, sizeof(StackElem_t));
+
+    stk -> left_canary = CANARY_VALUE;
+    stk -> right_canary = CANARY_VALUE;
+
     STACKASSERT(stk);
 
-    (stk -> info).pointer_name = pointer_name;
-    (stk -> info).pointer_place = pointer_place;
-    (stk -> info).pointer_line = pointer_line;
-    (stk -> info).func_name = func_name;
+    stk -> info.pointer_name = pointer_name;
+    stk -> info.pointer_place = pointer_place;
+    stk -> info.pointer_line = pointer_line;
+    stk -> info.func_name = func_name;
 
     stk -> size = 0;
     stk -> capacity = INIT_SIZE;
@@ -120,6 +137,7 @@ StackElem_t pop(Stack_t * stk)
         stk -> data = (StackElem_t *)realloc(stk -> data, stk -> size * sizeof(StackElem_t));
         stk -> capacity /= REDUCTION_FACTOR;
     }
+
     return value;
 }
 
@@ -165,8 +183,6 @@ enum ErrorCodes StackAssertFunc(Stack_t * stk, const char * file, int line, cons
 
 void StackDump(Stack_t * stk, const char * file, int line, const char * func)
 {
-    STACKASSERT(stk);
-
     FILE * dump_file = fopen("dump_file.txt", "w");
     if (!dump_file)
     {
@@ -192,10 +208,12 @@ void StackDump(Stack_t * stk, const char * file, int line, const char * func)
 
 enum ErrorCodes StackError(Stack_t * stk)
 {
-    if (stk == NULL)                    { return InvalidStructurePointer ;}
-    if (stk -> data == NULL)            { return InvalidStackPointer     ;}
-    if (stk -> size < 0)                { return IncorrectStackSize      ;}
-    if (stk -> capacity < 0)            { return IncorrectStackCapacity  ;}
-    if (stk -> size > stk -> capacity)  { return SizeExceededCapacity    ;}
-                                        { return StackOK                 ;}
+    if (stk == NULL)                         { return InvalidStructurePointer ;}
+    if (stk -> data == NULL)                 { return InvalidStackPointer     ;}
+    if (stk -> size < 0)                     { return IncorrectStackSize      ;}
+    if (stk -> capacity < 0)                 { return IncorrectStackCapacity  ;}
+    if (stk -> size > stk -> capacity)       { return SizeExceededCapacity    ;}
+    if (stk -> left_canary != CANARY_VALUE)  { return LeftAttackOnStructure   ;}
+    if (stk -> right_canary != CANARY_VALUE) { return RightAttackOnStructure  ;}
+                                             { return StackOK                 ;}
 }
