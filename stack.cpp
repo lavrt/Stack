@@ -95,7 +95,7 @@ StackElem_t pop(Stack_t * stk)
     stk->hash_of_struct = 0;
     stk->hash_of_struct = murmur3_32((uint8_t *)stk, sizeof(stk), 52);
 
-    if ((stk->size != 0) && (stk->capacity / (long unsigned)stk->size >= REDUCTION_FACTOR))
+    if ((stk->size != 0) && (stk->capacity / (long unsigned)stk->size >= REDUCTION_FACTOR) && stk->capacity > INIT_SIZE)
     {
         memset(stk->data + stk->size, 0, (stk->capacity - (long unsigned)stk->size + 1) * sizeof(StackElem_t));
         stk->data = (StackElem_t *)realloc(stk->data, (long unsigned)(stk->size + 2) * sizeof(StackElem_t));
@@ -127,15 +127,15 @@ void StackData(Stack_t * stk)
     fprintf(data_file, "STACK DATA\n\n"
                        "STACK: [%p]\n"
                        "SIZE: %lld\n"
-                       "CAPACITY: %lu\n", stk->data, stk->size, stk->capacity);
-    for (size_t i = 0; i < stk->capacity + 2; i++)
+                       "CAPACITY: %lu\n\n", stk->data, stk->size, stk->capacity);
+    for (size_t i = 0; i < stk->capacity; i++)
     {
         if (i % NEW_LINE_INDICATOR == 0)
         {
             putc('\n', data_file);
-            fprintf(data_file, "[%-12p]     ", stk->data + i);
+            fprintf(data_file, "[%-12p]     ", stk->data + i + 1);
         }
-        fprintf(data_file, "%-12lg",*(stk->data + i));
+        fprintf(data_file, "%-12lg",*(stk->data + i + 1));
     }
 
     FCLOSE(data_file);
