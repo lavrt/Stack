@@ -85,6 +85,7 @@ void push(Stack_t * stk, StackElem_t value)
 
 StackElem_t pop(Stack_t * stk)
 {
+    STACKASSERT(stk);
     stk->size--;
     STACKASSERT(stk);
 
