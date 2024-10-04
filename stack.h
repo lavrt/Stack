@@ -36,11 +36,12 @@ struct Stack_t
 #define FCLOSE(file_) \
     do { fclose(file_); file_ = NULL; } while(0)
 
-static const uint64_t CANARY_VALUE  = 0xDEFACED;
-static const size_t   INIT_SIZE            = 16;
-static const size_t   MAGNIFICATION_FACTOR =  2;
-static const size_t   REDUCTION_FACTOR     =  4;
-static const size_t   NEW_LINE_INDICATOR   = 10;
+static const StackElem_t POISON             = -333;
+static const uint64_t    CANARY_VALUE  = 0xDEFACED;
+static const size_t      INIT_SIZE            = 16;
+static const size_t      MAGNIFICATION_FACTOR =  2;
+static const size_t      REDUCTION_FACTOR     =  4;
+static const size_t      NEW_LINE_INDICATOR   = 10;
 
 enum ErrorCodes
 {

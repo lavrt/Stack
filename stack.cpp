@@ -24,7 +24,7 @@ void StackCtor(Stack_t * stk, const char * pointer_name, const char * pointer_pl
     stk->size = 0;
     stk->capacity = INIT_SIZE;
 
-    // memset(stk->data, ); // TODO poison values
+    memset(stk->data, POISON, (stk->capacity + 2) * sizeof(StackElem_t));
 
     stk->data[0] = CANARY_VALUE;
     stk->data[stk->capacity + 1] = CANARY_VALUE;
@@ -67,7 +67,7 @@ void push(Stack_t * stk, StackElem_t value)
             fprintf(stderr, "Invalid allocation\n");
             assert(0);
         }
-        memset(stk->data + stk->size + 1, 0, (stk->capacity - (long unsigned)stk->size) * sizeof(StackElem_t));
+        memset(stk->data + stk->size + 1, POISON, (stk->capacity - (long unsigned)stk->size) * sizeof(StackElem_t));
 
         stk->data[stk->capacity + 1] = CANARY_VALUE;
         stk->hash_of_stack = murmur3_32((uint8_t *)stk->data, (stk->capacity + 2) * sizeof(StackElem_t), 52);
@@ -85,11 +85,11 @@ void push(Stack_t * stk, StackElem_t value)
 
 StackElem_t pop(Stack_t * stk)
 {
+    stk->size--;
     STACKASSERT(stk);
 
-    stk->size--; // FIXME переполнение может произойти
     StackElem_t value = stk->data[stk->size + 1];
-    stk->data[stk->size + 1] = 0;
+    stk->data[stk->size + 1] = POISON;
 
     stk->hash_of_stack = murmur3_32((uint8_t *)stk->data, (stk->capacity + 2) * sizeof(StackElem_t), 52);
     stk->hash_of_struct = 0;
@@ -99,6 +99,11 @@ StackElem_t pop(Stack_t * stk)
     {
         memset(stk->data + stk->size, 0, (stk->capacity - (long unsigned)stk->size + 1) * sizeof(StackElem_t));
         stk->data = (StackElem_t *)realloc(stk->data, (long unsigned)(stk->size + 2) * sizeof(StackElem_t));
+        if (!stk->data)
+        {
+            fprintf(stderr, "Invalid allocation\n");
+            assert(0);
+        }
 
         stk->capacity /= REDUCTION_FACTOR;
 
@@ -133,7 +138,7 @@ void StackData(Stack_t * stk)
         if (i % NEW_LINE_INDICATOR == 0)
         {
             putc('\n', data_file);
-            fprintf(data_file, "[%-12p]     ", stk->data + i + 1);
+            fprintf(data_file, "[%p]     ", stk->data + i + 1);
         }
         fprintf(data_file, "%-12lg",*(stk->data + i + 1));
     }
@@ -181,6 +186,15 @@ void StackDump(Stack_t * stk, const char * file, int line, const char * func)
             stk->capacity,
             stk->size,
             stk->data);
+    for(int i = 0; i < stk->size; i++)
+    {
+        fprintf(dump_file, "            *[%d] = %lg\n", i, stk->data[i+1]);
+    }
+    for(int i = 0; i < stk->capacity - stk->size; i++)
+    {
+        fprintf(dump_file, "             [%lld] = %lg (POISON)\n", stk->size + i, stk->data[stk->size+i+1]);
+    }
+    fprintf(dump_file, "        }\n    }\n");
 
     FCLOSE(dump_file);
 }
